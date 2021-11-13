@@ -71,7 +71,6 @@ class Role extends ActiveRecord
 
     /**
      * Get list of roles for creating dropdowns
-     *
      * @param int|null $orgType
      * @return array
      */

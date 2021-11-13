@@ -57,7 +57,6 @@ class OrganizationType extends ActiveRecord
 
     /**
      * Array of all organization types
-     *
      * @return array
      */
     public static function getList()
