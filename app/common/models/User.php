@@ -2,73 +2,145 @@
 
 namespace common\models;
 
+use frontend\models\UserFilter;
 use Yii;
+use yii\base\Exception;
 use yii\base\NotSupportedException;
 use yii\behaviors\TimestampBehavior;
+use yii\db\ActiveQuery;
 use yii\db\ActiveRecord;
+use yii\helpers\ArrayHelper;
 use yii\web\IdentityInterface;
 
 /**
- * User model
+ * This is the model class for table "User"
  *
- * @property integer $id
- * @property string $username
- * @property string $password_hash
- * @property string $password_reset_token
- * @property string $verification_token
- * @property string $email
- * @property string $auth_key
- * @property integer $status
- * @property integer $created_at
- * @property integer $updated_at
- * @property string $password write-only password
+ * @property integer $id                 Идентификатор записи в таблице
+ * @property string  $email              Email пользователя
+ * @property integer $phone              Телефон пользователя
+ * @property string  $username           Имя пользователя
+ * @property string  $password           Пароль пользователя
+ * @property integer $roleId             Идентификатор роли/профессии
+ * @property integer $organizationId     Идентификатор организации, к которой прикреплен пользователь
+ * @property string  $language           Основной язык пользователя
+ * @property bool    $status             Статус активности пользователя
+ * @property string  $authKey            Ключ аутентификации
+ * @property string  $accessToken        Токен пользователя
+ * @property string  $createdAt          Дата и время создания записи в таблице
+ * @property string  $updatedAt          Дата и время последнего изменения записи в таблице
+ * @property string  $bannedAt           Дата и время бана
+ * @property string  $bannedReason       Причина бана
+ * @property bool    $smsSubscribe       Подписка на sms информирование
+ * @property bool    $emailSubscribe     Подписка на email информирование
+ * @property string  $noticeTimeFromTime Время, со скольки можно информировать
+ * @property string  $noticeTimeToTime   Время, до скольки можно информировать
+ * @property Role    $roleName           Название роли
  */
+
 class User extends ActiveRecord implements IdentityInterface
 {
-    const STATUS_DELETED = 0;
-    const STATUS_INACTIVE = 9;
-    const STATUS_ACTIVE = 10;
+    public const STATUS_INACTIVE = 0;
+    public const STATUS_ACTIVE = 1;
 
+    public const NOT_BANNED = 0;
+    public const BANNED = 1;
 
-    /**
-     * {@inheritdoc}
-     */
-    public static function tableName()
+    public const SMS_SUBSCRIBE = 1;
+    public const EMAIL_SUBSCRIBE = 1;
+
+    public static function tableName(): string
     {
         return '{{%user}}';
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function behaviors()
+    public function behaviors(): array
     {
-        return [
-            TimestampBehavior::className(),
-        ];
+        return ArrayHelper::merge(
+            parent::behaviors(),
+            [
+                'timestamp' => [
+                    'class'              => TimestampBehavior::class,
+                    'createdAtAttribute' => 'created_at',
+                    'updatedAtAttribute' => 'updated_at',
+                    'value'              => gmdate('Y-m-d H:i:s')
+                ],
+            ]
+        );
     }
 
     /**
-     * {@inheritdoc}
+     * Get Employees with (optional)filtration and (optional)sort
+     * @param UserFilter $filters
+     * @param null       $sortDirection
+     * @return ActiveQuery
      */
-    public function rules()
+    public static function getUsers(UserFilter $filters, $sortDirection = null): ActiveQuery
+    {
+        $users = self::find()
+            ->andFilterWhere(['ilike', 'name', $filters->search])
+            ->andFilterWhere(['role_id' => $filters->roles]);
+
+        if  ($sortDirection) {
+            $users->orderBy($sortDirection);
+        }
+
+        return $users;
+    }
+
+    public function rules(): array
     {
         return [
-            ['status', 'default', 'value' => self::STATUS_INACTIVE],
-            ['status', 'in', 'range' => [self::STATUS_ACTIVE, self::STATUS_INACTIVE, self::STATUS_DELETED]],
+            [
+                ['email', 'username', 'password', 'language', 'auth_key', 'access_token', 'banned_reason'],
+                'string',
+                'max' => 255
+            ],
+            [['phone', 'role_id', 'organization_id'], 'integer'],
+            ['email', 'filter', 'filter' => 'strtolower'],
+            [
+                ['email', 'username'],
+                'unique',
+                'on'      => ['register', 'admin', 'manage', 'manageNew'],
+                'message' => 'Данный email уже зарегистрирован в системе',
+            ],
+            [['email', 'username'], 'filter', 'filter' => 'trim'],
+            [
+                ['username'],
+                'match',
+                'pattern' => '/^\w+$/u',
+                'except'  => 'social',
+                'message' => ('Имя должно содержать только буквы, числа и "_"')
+            ],
+            [
+                ['newPasswordConfirm'],
+                'compare',
+                'compareAttribute' => 'newPassword',
+                'message'          => ('Пароль не соответствует правилам')
+            ],
+            [['email'], 'required', 'message' => ('Введите email')],
+            [['role_id'], 'required', 'on' => ['admin', 'manage', 'manageNew']],
+            [['banned_reason'], 'string', 'max' => 255, 'on' => 'admin'],
+            [['sms_subscribe', 'email_subscribe', 'status'], 'boolean'],
+            [['organization_id','type'],'integer'],
+            [
+                ['organization_id'],
+                'exist',
+                'skipOnEmpty'     => true,
+                'targetClass'     => Organization::class,
+                'targetAttribute' => 'id',
+                'allowArray'      => false,
+                'message'         => ('Организация не найдена')
+            ],
         ];
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public static function findIdentity($id)
     {
         return static::findOne(['id' => $id, 'status' => self::STATUS_ACTIVE]);
     }
 
     /**
-     * {@inheritdoc}
+     * @throws NotSupportedException
      */
     public static function findIdentityByAccessToken($token, $type = null)
     {
@@ -81,7 +153,7 @@ class User extends ActiveRecord implements IdentityInterface
      * @param string $username
      * @return static|null
      */
-    public static function findByUsername($username)
+    public static function findByUsername(string $username): ?User
     {
         return static::findOne(['username' => $username, 'status' => self::STATUS_ACTIVE]);
     }
@@ -92,15 +164,15 @@ class User extends ActiveRecord implements IdentityInterface
      * @param string $token password reset token
      * @return static|null
      */
-    public static function findByPasswordResetToken($token)
+    public static function findByPasswordResetToken(string $token): ?User
     {
         if (!static::isPasswordResetTokenValid($token)) {
             return null;
         }
 
         return static::findOne([
-            'password_reset_token' => $token,
-            'status' => self::STATUS_ACTIVE,
+            'access_token' => $token,
+            'status'       => self::STATUS_ACTIVE,
         ]);
     }
 
@@ -110,10 +182,11 @@ class User extends ActiveRecord implements IdentityInterface
      * @param string $token verify email token
      * @return static|null
      */
-    public static function findByVerificationToken($token) {
+    public static function findByVerificationToken(string $token): ?User
+    {
         return static::findOne([
             'verification_token' => $token,
-            'status' => self::STATUS_INACTIVE
+            'status'             => self::STATUS_INACTIVE
         ]);
     }
 
@@ -123,7 +196,7 @@ class User extends ActiveRecord implements IdentityInterface
      * @param string $token password reset token
      * @return bool
      */
-    public static function isPasswordResetTokenValid($token)
+    public static function isPasswordResetTokenValid(string $token): bool
     {
         if (empty($token)) {
             return false;
@@ -131,29 +204,21 @@ class User extends ActiveRecord implements IdentityInterface
 
         $timestamp = (int) substr($token, strrpos($token, '_') + 1);
         $expire = Yii::$app->params['user.passwordResetTokenExpire'];
+
         return $timestamp + $expire >= time();
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getId()
     {
         return $this->getPrimaryKey();
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function getAuthKey()
+    public function getAuthKey(): ?string
     {
-        return $this->auth_key;
+        return $this->authKey;
     }
 
-    /**
-     * {@inheritdoc}
-     */
-    public function validateAuthKey($authKey)
+    public function validateAuthKey($authKey): ?bool
     {
         return $this->getAuthKey() === $authKey;
     }
@@ -164,43 +229,47 @@ class User extends ActiveRecord implements IdentityInterface
      * @param string $password password to validate
      * @return bool if password provided is valid for current user
      */
-    public function validatePassword($password)
+    public function validatePassword(string $password): bool
     {
-        return Yii::$app->security->validatePassword($password, $this->password_hash);
+        return Yii::$app->security->validatePassword($password, $this->password);
     }
 
     /**
      * Generates password hash from password and sets it to the model
      *
      * @param string $password
+     * @throws Exception
      */
-    public function setPassword($password)
+    public function setPassword(string $password)
     {
-        $this->password_hash = Yii::$app->security->generatePasswordHash($password);
+        $this->password = Yii::$app->security->generatePasswordHash($password);
     }
 
     /**
      * Generates "remember me" authentication key
+     * @throws Exception
      */
     public function generateAuthKey()
     {
-        $this->auth_key = Yii::$app->security->generateRandomString();
+        $this->authKey = Yii::$app->security->generateRandomString();
     }
 
     /**
      * Generates new password reset token
+     * @throws Exception
      */
-    public function generatePasswordResetToken()
+    public function generateAccessToken()
     {
-        $this->password_reset_token = Yii::$app->security->generateRandomString() . '_' . time();
+        $this->accessToken = Yii::$app->security->generateRandomString() . '_' . time();
     }
 
     /**
      * Generates new token for email verification
+     * @throws Exception
      */
     public function generateEmailVerificationToken()
     {
-        $this->verification_token = Yii::$app->security->generateRandomString() . '_' . time();
+        $this->accessToken = Yii::$app->security->generateRandomString() . '_' . time();
     }
 
     /**
@@ -208,6 +277,36 @@ class User extends ActiveRecord implements IdentityInterface
      */
     public function removePasswordResetToken()
     {
-        $this->password_reset_token = null;
+        $this->accessToken = null;
+    }
+
+    public function setRole(int $roleId): User
+    {
+        $this->roleId = $roleId;
+        $this->save();
+
+        return $this;
+    }
+
+    public function getConsentOnNotice(): bool
+    {
+        return $this->smsSubscribe && $this->emailSubscribe;
+    }
+
+    public static function isHeadRole(): bool
+    {
+        return in_array($this->roleId, Role::$headRoleList);
+    }
+
+    public static function isCommonRole(): bool
+    {
+        return in_array($this->roleId, Role::$commonRoleList);
+    }
+
+    public static function getRoleName(): string
+    {
+        $model = Role::findOne($this->roleId);
+
+        return $model->name;
     }
 }

@@ -5,6 +5,7 @@ namespace frontend\controllers;
 use frontend\models\ResendVerificationEmailForm;
 use frontend\models\VerifyEmailForm;
 use Yii;
+use yii\base\Exception;
 use yii\base\InvalidArgumentException;
 use yii\web\BadRequestHttpException;
 use yii\web\Controller;
@@ -15,6 +16,7 @@ use frontend\models\PasswordResetRequestForm;
 use frontend\models\ResetPasswordForm;
 use frontend\models\SignupForm;
 use frontend\models\ContactForm;
+use yii\web\Response;
 
 /**
  * Site controller
@@ -28,13 +30,21 @@ class SiteController extends Controller
     {
         return [
             'access' => [
-                'class' => AccessControl::className(),
-                'only' => ['logout', 'signup'],
+                'class' => AccessControl::class,
+                'only' => ['logout', 'signup', 'login'],
                 'rules' => [
                     [
-                        'actions' => ['signup'],
+                        'actions' => ['signup', 'login'],
                         'allow' => true,
                         'roles' => ['?'],
+                    ],
+                    [
+                        'actions' => ['signup', 'login'],
+                        'allow' => false,
+                        'roles' => ['@'],
+                        'denyCallback' => function ($rule, $action) {
+                            return $action->controller->redirect('/users');
+                        }
                     ],
                     [
                         'actions' => ['logout'],
@@ -70,18 +80,16 @@ class SiteController extends Controller
 
     /**
      * Displays homepage.
-     *
-     * @return mixed
+     * @return string
      */
-    public function actionIndex()
+    public function actionIndex(): string
     {
         return $this->render('index');
     }
 
     /**
      * Logs in a user.
-     *
-     * @return mixed
+     * @return string|Response
      */
     public function actionLogin()
     {
@@ -103,10 +111,9 @@ class SiteController extends Controller
 
     /**
      * Logs out the current user.
-     *
-     * @return mixed
+     * @return Response
      */
-    public function actionLogout()
+    public function actionLogout(): Response
     {
         Yii::$app->user->logout();
 
@@ -115,8 +122,7 @@ class SiteController extends Controller
 
     /**
      * Displays contact page.
-     *
-     * @return mixed
+     * @return Response|string
      */
     public function actionContact()
     {
@@ -138,18 +144,17 @@ class SiteController extends Controller
 
     /**
      * Displays about page.
-     *
-     * @return mixed
+     * @return string
      */
-    public function actionAbout()
+    public function actionAbout(): string
     {
         return $this->render('about');
     }
 
     /**
      * Signs user up.
-     *
-     * @return mixed
+     * @return Response|string
+     * @throws Exception
      */
     public function actionSignup()
     {
@@ -166,8 +171,7 @@ class SiteController extends Controller
 
     /**
      * Requests password reset.
-     *
-     * @return mixed
+     * @return Response|string
      */
     public function actionRequestPasswordReset()
     {
@@ -189,12 +193,11 @@ class SiteController extends Controller
 
     /**
      * Resets password.
-     *
      * @param string $token
-     * @return mixed
+     * @return Response|string
      * @throws BadRequestHttpException
      */
-    public function actionResetPassword($token)
+    public function actionResetPassword(string $token)
     {
         try {
             $model = new ResetPasswordForm($token);
@@ -218,7 +221,7 @@ class SiteController extends Controller
      *
      * @param string $token
      * @throws BadRequestHttpException
-     * @return yii\web\Response
+     * @return Response
      */
     public function actionVerifyEmail($token)
     {

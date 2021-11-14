@@ -1,7 +1,9 @@
 <?php
 
-/* @var $this \yii\web\View */
-/* @var $content string */
+/**
+ * @var $this    View
+ * @var $content string
+ */
 
 use common\widgets\Alert;
 use frontend\assets\AppAsset;
@@ -9,8 +11,12 @@ use yii\bootstrap4\Breadcrumbs;
 use yii\bootstrap4\Html;
 use yii\bootstrap4\Nav;
 use yii\bootstrap4\NavBar;
+use yii\web\View;
 
 AppAsset::register($this);
+
+Yii::$app->name = 'ASM';
+
 ?>
 <?php $this->beginPage() ?>
 <!DOCTYPE html>
@@ -34,15 +40,15 @@ AppAsset::register($this);
             'class' => 'navbar navbar-expand-md navbar-dark bg-dark fixed-top',
         ],
     ]);
-    $menuItems = [
-        ['label' => 'Home', 'url' => ['/site/index']],
-        ['label' => 'About', 'url' => ['/site/about']],
-        ['label' => 'Contact', 'url' => ['/site/contact']],
-    ];
+
+    $menuItems = [];
+
     if (Yii::$app->user->isGuest) {
-        $menuItems[] = ['label' => 'Signup', 'url' => ['/site/signup']];
-        $menuItems[] = ['label' => 'Login', 'url' => ['/site/login']];
+        $menuItems[] = ['label' => 'Signup', 'url' => ['site/signup']];
+        $menuItems[] = ['label' => 'Login', 'url' => ['site/login']];
     } else {
+        $menuItems[] = ['label' => 'Users', 'url' => ['/user/index']];
+        $menuItems[] = ['label' => 'Roles', 'url' => ['/role/index']];
         $menuItems[] = '<li>'
             . Html::beginForm(['/site/logout'], 'post', ['class' => 'form-inline'])
             . Html::submitButton(
@@ -63,7 +69,7 @@ AppAsset::register($this);
 <main role="main" class="flex-shrink-0">
     <div class="container">
         <?= Breadcrumbs::widget([
-            'links' => isset($this->params['breadcrumbs']) ? $this->params['breadcrumbs'] : [],
+            'links' => $this->params['breadcrumbs'] ?? [],
         ]) ?>
         <?= Alert::widget() ?>
         <?= $content ?>
@@ -73,7 +79,6 @@ AppAsset::register($this);
 <footer class="footer mt-auto py-3 text-muted">
     <div class="container">
         <p class="float-left">&copy; <?= Html::encode(Yii::$app->name) ?> <?= date('Y') ?></p>
-        <p class="float-right"><?= Yii::powered() ?></p>
     </div>
 </footer>
 

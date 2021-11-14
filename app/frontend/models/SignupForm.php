@@ -2,24 +2,27 @@
 
 namespace frontend\models;
 
+use api_web\exceptions\ValidationException;
+use common\models\Role;
 use Yii;
+use yii\base\Exception;
 use yii\base\Model;
 use common\models\User;
+use yii\web\BadRequestHttpException;
 
 /**
- * Signup form
+ * Sign Up form
  */
 class SignupForm extends Model
 {
     public $username;
     public $email;
     public $password;
+    public $phone;
+    public $roleId;
+    public $organizationId;
 
-
-    /**
-     * {@inheritdoc}
-     */
-    public function rules()
+    public function rules(): array
     {
         return [
             ['username', 'trim'],
@@ -40,23 +43,34 @@ class SignupForm extends Model
 
     /**
      * Signs user up.
-     *
      * @return bool whether the creating new account was successful and email was sent
+     * @throws Exception
      */
-    public function signup()
+    public function signup(): ?bool
     {
         if (!$this->validate()) {
-            return null;
+            throw new ValidationException('Ошибка валидации полей');
         }
-        
+
         $user = new User();
         $user->username = $this->username;
-        $user->email = $this->email;
+        $user->status = User::STATUS_ACTIVE;
+        $user->email = $this->email ?? null;
+        $user->phone = $this->phone ?? null;
+        $user->organizationId = $this->organizationId ?? null;
+        $user->roleId = $this->roleId ?? Role::GUEST;
+
         $user->setPassword($this->password);
+
         $user->generateAuthKey();
+        $user->generateAccessToken();
         $user->generateEmailVerificationToken();
 
-        return $user->save() && $this->sendEmail($user);
+        try {
+            return $user->save() && $this->sendEmail($user);
+        } catch (\Exception $e) {
+            throw new BadRequestHttpException("Ошибка регистрации: {$e->getMessage()}");
+        }
     }
 
     /**
@@ -64,7 +78,7 @@ class SignupForm extends Model
      * @param User $user user model to with email should be send
      * @return bool whether the email was sent
      */
-    protected function sendEmail($user)
+    protected function sendEmail(User $user): bool
     {
         return Yii::$app
             ->mailer

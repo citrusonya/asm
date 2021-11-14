@@ -99,4 +99,24 @@ class Role extends ActiveRecord
 
         return $role->name ?? '';
     }
+
+    public function getPosition(): \yii\db\ActiveQuery
+    {
+        return $this->hasOne(Role::className(), ['id' => 'position_id']);
+    }
+
+    public static function getPositions()
+    {
+        $roles = self::find()
+            ->orderBy(['name' => SORT_ASC])
+            ->all();
+
+        $result = [];
+
+        foreach ($roles as $role) {
+            $result[$role['id']] = $role['name'];
+        }
+
+        return $result;
+    }
 }
