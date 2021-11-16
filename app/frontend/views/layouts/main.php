@@ -47,8 +47,8 @@ Yii::$app->name = 'ASM';
         $menuItems[] = ['label' => 'Signup', 'url' => ['site/signup']];
         $menuItems[] = ['label' => 'Login', 'url' => ['site/login']];
     } else {
-        $menuItems[] = ['label' => 'Users', 'url' => ['/user/index']];
-        $menuItems[] = ['label' => 'Roles', 'url' => ['/role/index']];
+        $menuItems[] = ['label' => 'Users', 'url' => ['user/index']];
+        $menuItems[] = ['label' => 'Roles', 'url' => ['role/index']];
         $menuItems[] = '<li>'
             . Html::beginForm(['/site/logout'], 'post', ['class' => 'form-inline'])
             . Html::submitButton(
