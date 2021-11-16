@@ -2,7 +2,6 @@
 
 namespace frontend\models;
 
-use api_web\exceptions\ValidationException;
 use common\models\Role;
 use Yii;
 use yii\base\Exception;
@@ -43,13 +42,14 @@ class SignupForm extends Model
 
     /**
      * Signs user up.
+     *
      * @return bool whether the creating new account was successful and email was sent
      * @throws Exception
      */
     public function signup(): ?bool
     {
         if (!$this->validate()) {
-            throw new ValidationException('Ошибка валидации полей');
+            throw new Exception('Ошибка валидации полей');
         }
 
         $user = new User();
@@ -67,7 +67,7 @@ class SignupForm extends Model
         $user->generateEmailVerificationToken();
 
         try {
-            return $user->save() && $this->sendEmail($user);
+            return $user->save();
         } catch (\Exception $e) {
             throw new BadRequestHttpException("Ошибка регистрации: {$e->getMessage()}");
         }
@@ -75,6 +75,7 @@ class SignupForm extends Model
 
     /**
      * Sends confirmation email to user
+     *
      * @param User $user user model to with email should be send
      * @return bool whether the email was sent
      */
